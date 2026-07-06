@@ -109,6 +109,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+.env.wecom
 
 # Spyder project settings
 .spyderproject
@@ -160,27 +161,12 @@ evaluation/data/*
 !evaluation/data/golden.json
 !evaluation/data/silver.json
 
-# Node.js / npm
-node_modules/
-.npm/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-*.tgz
-*.tsbuildinfo
-.eslintcache
-out/
-
-# OpenCode local config
+.omo/
 .opencode/
-
-# Trae local config
 .trae/
-
-# Temp
-tmp/
-temp/
-*.tmp
+.codegraph/
 
 models/
 data/
+superpowers/
+grafana/
