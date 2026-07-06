@@ -109,64 +109,39 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-.env.wecom
 
 # Spyder project settings
 .spyderproject
-.spyproject
-
-# Rope project settings
-.ropeproject
-
-# mkdocs documentation
-/site
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
-
-# IDE / Editor
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS specific
-.DS_Store
-Thumbs.db
-ehthumbs.db
-Desktop.ini
-
-# Project specific
-*.log
-.project/
-.git/
-logs/
-.jbeval/
-
-# RAG Evaluation
-evaluation/reports/
-evaluation/data/*
+@@ -160,27 +161,12 @@ evaluation/data/*
 !evaluation/data/golden.json
 !evaluation/data/silver.json
 
-.omo/
+# Node.js / npm
+node_modules/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tgz
+*.tsbuildinfo
+.eslintcache
+out/
+
+# OpenCode local config
 .opencode/
+.omo/
+
+# Trae local config
 .trae/
+
 .codegraph/
+superpowers/
+grafana/
+
+# Temp
+tmp/
+temp/
+*.tmp
 
 models/
 data/
-superpowers/
-grafana/
