@@ -15,6 +15,7 @@
 - 九、多 Agent 编排规范
 - 十、项目级 AGENTS.md 规范
 - 十一、代码检查修改规范
+- 十二、项目文件结构规范
 
 ## 一、角色与行为准则
 
@@ -177,6 +178,8 @@
 
 每个项目应在根目录放置独立的 `AGENTS.md`，作为该项目的工程手册。本文件（通用规范）定义所有项目共用的规则，项目级 AGENTS.md 在此基础上补充项目特有的约束。
 
+>**注意**：AGENTS.md 确定好后不能随便修改。要修改，必须经架构评审通过，并且给出修改理由、修改后的内容。
+
 ### 10.1 项目级 AGENTS.md 的内容要求
 
 至少包含以下 6 个板块：
@@ -254,9 +257,9 @@
 
 3. **影响范围**：该问题影响哪些模块、哪些接口、哪些用户场景。
 
-4. **诊断方式**：对于整个项目要分模块、分级别、分功能进行诊断，对于单个模块要分功能进行诊断，不能只看表面现象。
+4. **诊断方式**：对于整个项目要分层级、分模块、分功能进行诊断，对于单个模块要分功能进行诊断，不能只看文档、注释，要先整体后细化，确保诊断深度够深，对代码细节都要有深入理解。
 
->**特别说明**：项目中的文档不一定体现最新的代码状态，需要根据实际情况进行诊断。
+>**特别说明**：项目中的文档不一定体现最新的代码状态，需要根据实际代码进行诊断。
 
 ### 11.2 方案设计阶段——给出解决方法及理由
 
@@ -301,5 +304,155 @@
 
 - 不先分析根因就直接猜测性修改（"尝试修复"）。
 - 不做影响评估就大面积重构。
-- 为了通过类型检查而使用 `as any`、`@ts-ignore`、`@ts-expect-error` 等逃逸手段。
+- 为了通过类型检查而使用 `as any`、`@ts-ignore`、`ts-expect-error` 等逃逸手段。
 - 修改后不做验证就声称完成。
+
+## 十二、项目文件结构规范
+
+### 12.1 核心原则——架构诚实反映耦合
+
+目录结构必须真实反映系统的模块划分和耦合关系，禁止用目录层次掩盖实际依赖。两条准则：
+
+1. **依赖方向可见**：从目录树能直观判断模块间的依赖方向——上层依赖下层、外层依赖内层，不允许出现目录层级暗示"互不依赖"而代码中 cross-import 泛滥的情况。
+2. **目录即边界**：一个 Python 包（含 `__init__.py` 的目录）是一个编译/类型检查单元，跨包引用须通过公开接口，禁止从外部直接 import 包内私有模块。
+
+>**反例**：`services/order.py` 直接 `from models.user import User`（跨层跨包裸引用内部路径）。\
+>**正例**：`services/order.py` 只 `from orders.models import Order` 或 `from users import User`（通过层的公开入口导入）。
+
+### 12.2 层优先 + 域内分组
+
+项目采用「架构层优先，域在层内分组」的结构模式，而非按业务域平铺。
+
+```
+src/
+├── interfaces/          # 接口层：路由、请求/响应定义、中间件
+│   ├── __init__.py
+│   ├── auth/
+│   │   ├── __init__.py     # 导出公开路由函数
+│   │   └── routes.py
+│   └── orders/
+│       ├── __init__.py
+│       └── routes.py
+├── application/         # 应用层：用例编排、事务脚本、DTO
+│   ├── __init__.py
+│   ├── auth/
+│   │   ├── __init__.py
+│   │   └── login_use_case.py
+│   └── orders/
+│       ├── __init__.py
+│       └── create_order.py
+├── domain/              # 领域层：核心业务逻辑、实体、值对象、领域服务
+│   ├── __init__.py
+│   ├── models/              # 整个项目的领域模型
+│   │   ├── __init__.py
+│   │   ├── order.py
+│   │   └── user.py
+│   └── services/
+│       ├── __init__.py
+│       └── pricing.py
+└── infrastructure/      # 基础设施层：DB、缓存、外部 API、消息队列
+    ├── __init__.py
+    ├── database/
+    │   ├── __init__.py
+    │   ├── repositories/
+    │   │   ├── __init__.py
+    │   │   ├── order_repo.py
+    │   │   └── user_repo.py
+    │   └── migrations/
+    └── external/
+        ├── __init__.py
+        └── payment_gateway.py
+```
+
+**结构约束**：
+
+- 依赖方向严格单向：`interfaces → application → domain ← infrastructure`。infrastructure 实现 domain 定义的接口（依赖倒置），domain 不依赖任何外层。
+- 同层内按业务域（`auth/`、`orders/`）分组，域间不应有跨域直接 import。
+- 一个域的内部实现细节（helper、内部类型）放在该域的子目录中，不暴露到层外。
+
+**不推荐的替代方案（避免使用）**：
+
+```
+# ❌ 按域平铺——混淆了层边界，容易产生循环依赖
+src/
+├── auth/
+│   ├── routes.py          # 接口层
+│   ├── service.py         # 应用层 + 领域层混在一起
+│   └── models.py          # 数据模型 vs 领域模型不区分
+├── orders/
+│   ├── routes.py
+│   ├── service.py
+│   └── models.py
+```
+
+```
+# ❌ 过度分层——与框架对抗，增加无意义跳转
+src/
+├── controllers/
+│   └── auth_controller.py
+├── services/
+│   └── auth_service.py
+├── repositories/
+│   └── auth_repo.py
+├── models/
+│   └── auth_model.py
+```
+
+>**选型理由**：层优先结构直接对应依赖方向，编译/类型检查工具可以验证层间依赖；域内分组保持了业务内聚性。与大多数框架（FastAPI、Flask Blueprint、Django App）的模块组织方式一致，不会与框架约束对抗。
+
+### 12.3 `__init__.py` 导出规范
+
+`__init__.py` 是包的公共接口声明，必须履行 **「对外隐藏内部路径」** 的职责。
+
+**规则**：
+
+1. **显式导出**：在 `__init__.py` 中用 `__all__` 列出所有公开名称。未出现在 `__all__` 中的视为内部实现，外部不得引用。
+
+2. **扁平导入路径**：外部代码只能通过包的顶层入口导入，禁止穿越内部目录结构。
+
+   ```
+   # ✅ 正确——通过公开入口导入
+   from orders.models import Order, OrderLineItem
+   from users import User, UserRepository
+   from auth import login_required
+
+   # ❌ 错误——穿越内部路径，暴露目录结构
+   from domain.models._order_table import Order
+   from infrastructure.database.repositories.order_repo import OrderRepository
+   from interfaces.auth._helpers.token_utils import decode_token
+   ```
+
+3. **沉淀导入**：`__init__.py` 中从子模块导入名称并加入 `__all__`，让调用方只需要 import 包层次即可。
+
+   ```python
+   # src/domain/models/__init__.py
+   from .order import Order, OrderLineItem, OrderStatus
+   from .user import User, UserRole
+
+   __all__ = [
+       "Order",
+       "OrderLineItem",
+       "OrderStatus",
+       "User",
+       "UserRole",
+   ]
+   ```
+
+   ```python
+   # src/domain/__init__.py
+   from .models import Order, OrderLineItem, OrderStatus, User, UserRole
+
+   __all__ = [
+       "Order",
+       "OrderLineItem",
+       "OrderStatus",
+       "User",
+       "UserRole",
+   ]
+   ```
+
+4. **内部模块前缀**：内部实现模块（不对外暴露的）文件名以下划线 `_` 开头，如 `_token_utils.py`、`_internal_helpers.py`。外部代码在任何情况下都不应引用这些模块。
+
+5. **禁止裸 import 子模块**：不得在业务代码中写 `import orders.models.order` 或 `from domain.models.order import Order`。所有公共类型必须通过 `__init__.py` 沉淀到合适的层入口后再对外暴露。
+
+**效果**：重构内部目录结构时（如拆分模块、移动文件），只要保持 `__init__.py` 的导出不变，所有外部调用代码无需修改。
