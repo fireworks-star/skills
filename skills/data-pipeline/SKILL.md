@@ -1,108 +1,32 @@
 ---
 name: "data-pipeline"
-description: "数据处理与采集规范：pandas 分析流程、可视化标准、爬虫工程（UA/限速/反爬/超时/降级）、Streamlit 状态与缓存。开发数据分析、爬虫、Streamlit 应用时使用。"
+description: "数据分析、授权采集和 Streamlit 项目的额外约束：数据质量、采集边界、限速超时、状态缓存和可复现验证。按项目类型加载。"
 ---
 
-# 数据处理与采集规范
+# 数据处理与采集约束
 
-数据工程模式。适用于数据分析（pandas/matplotlib）、数据采集（requests/Playwright）、Streamlit 应用开发。
+本 skill 只补充数据项目的质量、合规和运行时约束，不重复 pandas、Playwright 或 Streamlit 文档。
 
-## 1. 数据分析标准流程
+## 1. 数据质量与可复现性
 
-固定链路：**读入 → 检查缺失 → 清洗 → 转换 → 分组聚合 → 可视化**。
+- 输入数据必须记录来源、时间、版本、编码、Schema 和质量检查结果。
+- 缺失、重复、异常范围和类型漂移必须显式处理，并区分未知、空值和业务零值。
+- 转换和聚合结果需要可复现；关键指标保留口径、样本范围和验证数据。
 
-```python
-df = pd.read_csv('output.csv', encoding='utf-8')
+## 2. 授权采集
 
-# 每次读入先检查缺失，不直接上手分析
-print(df.isnull().sum())
+- 只采集有权访问和有权保存的数据，遵守目标站点条款、robots、隐私要求和适用法律。
+- 所有请求设置超时、并发上限、限速、重试预算和取消路径；不得通过规避检测扩大采集能力。
+- 采集结果保留来源、抓取时间、字段版本和失败原因；敏感字段按项目策略脱敏或删除。
+- 优先使用稳定接口或静态请求；只有业务确实需要时才使用浏览器自动化。
 
-df_clean = df.dropna()
-result = df.groupby('city').agg({
-    'score': ['mean', 'max', 'min', 'std'],
-    'salary': ['sum', 'mean'],
-    'name': 'count',
-})
-```
+## 3. Streamlit 与交互状态
 
-- 缺失值显式处理（`dropna` 或按列填充），不留隐式 NaN 带入计算
-- 聚合用 `groupby + agg`，禁止手写循环统计
-- 工具链分层：Jupyter 探索 → NumPy/Pandas 计算 → Matplotlib/Seaborn 可视化 → Streamlit 应用化
+- 会话状态与持久化数据分离；初始化、清理和并发行为必须明确。
+- 缓存只用于可安全复用的数据或计算结果，设置 TTL、失效条件和隐私边界。
+- 数据加载、业务计算和页面渲染分离，避免每次交互重复执行昂贵或有副作用的操作。
 
-## 2. 可视化规范
+## 4. 验证
 
-图不是画出来就完，五要素齐全：标题、轴标签、图例、网格、导出：
-
-```python
-fig, ax = plt.subplots(figsize=(10, 6))
-ax.plot(x, y1, label='sin(x)', color='blue')
-ax.set_title('三角函数', fontsize=16, fontweight='bold')
-ax.set_xlabel('X轴', fontsize=12)
-ax.set_ylabel('Y轴', fontsize=12)
-ax.grid(True, alpha=0.3)
-ax.legend()
-plt.savefig('plot.png')
-```
-
-## 3. 爬虫工程规范
-
-**工具选型看场景**——静态页面用 requests + BeautifulSoup；以下三种场景必须换 Playwright：JavaScript 动态渲染、滚动加载、需要登录认证。
-
-**生产级爬虫必备项**：
-
-```python
-# 1. 真实浏览器 UA，模拟正常请求
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) ...'
-}
-
-# 2. 隐藏自动化特征
-browser = await playwright.chromium.launch(
-    headless=True,
-    args=["--disable-blink-features=AutomationControlled"]
-)
-
-# 3. 显式超时
-page.set_default_timeout(30000)
-
-# 4. 控制节奏：滚动加载间隔等待，不高频轰炸
-await asyncio.sleep(scroll_interval)
-```
-
-**结构化提取**：数据统一收集为字典列表，字段名稳定：
-
-```python
-results.append({
-    "title": title,
-    "img_url": img_url,      # 支持懒加载 data-src、data-original
-    "like_num": like_num,
-})
-```
-
-**测试组织**：爬虫逻辑用类封装（浏览器/页面/采集逻辑分离），测试用 `unittest.TestCase` 组织。
-
-**注意**：爬虫仅用于授权范围内的公开数据采集，遵守目标站点服务条款。
-
-## 4. Streamlit 应用规范
-
-**状态管理**：所有会话状态走 `st.session_state`，入口先初始化：
-
-```python
-if "count" not in st.session_state:
-    st.session_state.count = 0
-```
-
-**缓存**：重复加载/计算/查询的数据加缓存，带 TTL：
-
-```python
-@st.cache_data(ttl=3600)
-def load_data():
-    return pd.DataFrame({...})
-```
-
-**多页面导航**：用 `st.session_state.page` 管理当前页；数据模型复用 SQLModel；数据加载函数与页面渲染分离。
-
-## 5. 前端基础规范（配合 Streamlit/简单页面）
-
-- 结构、样式、交互三层分离：HTML 骨架、CSS 外置文件、JS 行为
-- 语义化标签 + class 组织页面，样式不内联（教学演示除外）
+- 至少验证正常数据、空数据、异常数据、重复运行和外部依赖失败场景。
+- 关键输出检查数值口径、来源和可复现性；采集任务还需验证限速、超时和停止行为。
